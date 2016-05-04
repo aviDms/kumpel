@@ -1,6 +1,6 @@
 import psycopg2
 from psycopg2.extras import RealDictConnection
-from helpers import read_sql
+from .helpers import read_sql
 
 
 class Table(object):
@@ -13,6 +13,7 @@ class Table(object):
             * TRUNCATE TABLE
             * run data profile
             * check if table exists
+            * add column to existing table and load its data only
 
         Current support: PostgreSQL
 
@@ -26,13 +27,30 @@ class Table(object):
         self.uri = uri
 
     def exists(self):
-        table_list_stmt = "SELECT COUNT(1)=1 " \
-                          "FROM information_schema.tables " \
-                          "WHERE table_schema='%s' " \
-                          "AND table_name='%s';" % (self.schema, self.name)
+        """ Returns True if table exists false otherwise. """
+        stmt = "SELECT COUNT(1)=1 " \
+               "FROM information_schema.tables " \
+               "WHERE table_schema='%s' " \
+               "AND table_name='%s';" % (self.schema, self.name)
         with psycopg2.connect(self.uri) as connection:
             with connection.cursor() as cursor:
-                cursor.execute(table_list_stmt)
+                cursor.execute(stmt)
+                resp = cursor.fetchone()
+        assert isinstance(resp[0], bool)
+        return resp[0]
+
+    def column_exists(self, col_name):
+        """ Returns True if column exists false otherwise. """
+        stmt = "SELECT COUNT(1)=1 " \
+               "FROM information_schema.columns " \
+               "WHERE table_schema='{schema}' " \
+               "AND table_name='{table}' " \
+               "AND column_name='{column}';"
+        stmt = stmt.format(schema=self.schema, table=self.name,
+                           column=col_name)
+        with psycopg2.connect(self.uri) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(stmt)
                 resp = cursor.fetchone()
         assert isinstance(resp[0], bool)
         return resp[0]
@@ -45,7 +63,8 @@ class Table(object):
         if sql:
             create_stmt = sql
         elif script_path:
-            create_stmt = read_sql(path=script_path, schema=self.schema, table=self.name)
+            create_stmt = read_sql(path=script_path, schema=self.schema,
+                                   table=self.name)
         else:
             exit('Create SQL statement is missing.')
 
@@ -61,12 +80,21 @@ class Table(object):
                 else:
                     pass
 
+    def add_column(self, col_name, col_type):
+        stmt = "ALTER TABLE {schema}.{table} ADD COLUMN {column} {type};"
+        stmt = stmt.format(schema=self.schema, table=self.name, column=col_name,
+                           type=col_type)
+        with psycopg2.connect(self.uri) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(stmt)
+            connection.commit()
+
     def truncate(self):
         truncate_stmt = "TRUNCATE %s.%s;" % (self.schema, self.name)
         with psycopg2.connect(self.uri) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(truncate_stmt)
-                connection.commit()
+            connection.commit()
 
     def vacuum(self, full=True, analyze=True):
         """ Need to close other open connections first """
@@ -107,8 +135,13 @@ class Table(object):
         """ Generate INSERT statement using a list of columns.
 
         :param columns: list of strings
+
+        TODO:
+            * created_at, updated_at -- need to figure out if
+        it is a good idea to do it here
+            * serial id, hash, and so on
         """
-        insert_stmt = "INSERT INTO {table} ({columns}) VALUES ({values})"
+        insert_stmt = "INSERT INTO {table} ({columns}) VALUES ({values});"
         return insert_stmt.format(
             table='.'.join([self.schema, self.name]),
             columns=', '.join(columns),
@@ -120,9 +153,11 @@ class Table(object):
 
         :param columns: list of strings
         :param constraint: string
+
+        TODO: updated_at
         """
-        merge_stmt = "INSERT INTO {table} ({columns}) VALUES ({values}) "\
-                     "ON CONFLICT ({constraint}) DO UPDATE "\
+        merge_stmt = "INSERT INTO {table} ({columns}) VALUES ({values}) " \
+                     "ON CONFLICT ({constraint}) DO UPDATE " \
                      "SET ({columns}) = ({excluded_values});"
         return merge_stmt.format(
             table='.'.join([self.schema, self.name]),
@@ -132,16 +167,55 @@ class Table(object):
             excluded_values=', '.join(['EXCLUDED.%s' % c for c in columns])
         )
 
-    def update(self):
-        raise NotImplementedError
+    def update(self, rows, conflict_on):
+        """ INSERT rows into existing PostgreSQL table.
 
-    def get_update_stmt(self):
-        raise NotImplementedError
+        :param rows: python generator
+        :param conflict_on: name of the column, string
+
+        The conflict_on column must have unique values. It is used as a rule
+        by the INSERT command to determine if the row needs to be appended to
+        the table (e.g. INSERT) or if the row already exists and the values
+        need to be updated (e.g. UPDATE).
+        """
+        first_row = next(rows)
+        constraint = first_row.pop(conflict_on)
+        keys = first_row.keys()
+
+        stmt = self.get_update_stmt(columns=keys)
+        where = " WHERE %s = %s;" % (conflict_on, constraint)
+
+        with psycopg2.connect(self.uri) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(stmt + where, list(first_row.values()))
+                for row in rows:
+                    constraint = row.pop(conflict_on)
+                    where = " WHERE %s = %s;" % (conflict_on, constraint)
+                    cursor.execute(stmt + where, list(row.values()))
+            connection.commit()
+
+    def get_update_stmt(self, columns):
+        """ Generate UPDATE statement using a list of columns.
+
+        :param constraint:
+        :param columns: list of strings
+
+        TODO:
+            * updated_at -- need to figure out if
+        it is a good idea to do it here
+            * serial id, hash, and so on
+        """
+        insert_stmt = "UPDATE {table} SET ({columns}) = ({values})"
+        return insert_stmt.format(
+            table='.'.join([self.schema, self.name]),
+            columns=', '.join(columns),
+            values=', '.join(['%s' for c in columns]),
+        )
 
     def get_constraints(self):
         """ Query db for the list of constraints for this table """
         stmt = "SELECT constraint_name, constraint_type " \
-               "FROM information_schema.table_constraints "\
+               "FROM information_schema.table_constraints " \
                "WHERE table_name='{name}' and table_schema" \
                "='{schema}'".format(name=self.name, schema=self.schema)
 
@@ -154,8 +228,8 @@ class Table(object):
 
     def get_row_count(self):
         stmt = "SELECT n_live_tup FROM pg_stat_user_tables " \
-               "WHERE relname='{name}' AND schemaname='{schema}'"\
-               .format(name=self.name, schema=self.schema)
+               "WHERE relname='{name}' AND schemaname='{schema}'" \
+            .format(name=self.name, schema=self.schema)
 
         with psycopg2.connect(self.uri) as connection:
             with connection.cursor() as cursor:
@@ -165,8 +239,8 @@ class Table(object):
 
     def list_columns(self):
         stmt = "SELECT column_name FROM information_schema.columns " \
-               "WHERE table_name='{name}' and table_schema='{schema}'"\
-               .format(name=self.name, schema=self.schema)
+               "WHERE table_name='{name}' and table_schema='{schema}'" \
+            .format(name=self.name, schema=self.schema)
 
         with psycopg2.connect(self.uri) as connection:
             with connection.cursor() as cursor:
@@ -185,6 +259,9 @@ class Table(object):
         """tables info: row_count, usage, size, indexes, dependencies"""
         raise NotImplementedError
 
+    def set_index(self):
+        raise NotImplementedError
+
 
 class Database(object):
     """ Database object: a list of Table objects.
@@ -193,6 +270,7 @@ class Database(object):
 
         TODO:
     """
+
     def __init__(self, uri, schema='public'):
         self.uri = uri
         self.schema = schema

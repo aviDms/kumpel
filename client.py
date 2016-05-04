@@ -56,6 +56,7 @@ class Query(object):
 
     def run(self):
         """
+        TODO: change __conn_name with metadata
         """
         for name, dsn in self.connections.items():
             with Connection(name, dsn) as connection:
