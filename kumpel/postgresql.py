@@ -343,6 +343,18 @@ class Database(object):
     def __repr__(self):
         pass
 
+    def create_schema(self, name):
+        """
+
+        :param name:
+        :return:
+        """
+        stmt = "CREATE SCHEMA IF NOT EXISTS {{schema_name}};"
+        with psycopg2.connect(self.uri) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(stmt.format(schema_name=name))
+                connection.commit()
+
     def __list_tables(self):
         tables = list()
         stmt = "SELECT table_name FROM information_schema.tables WHERE table_schema='{schema}';"
