@@ -20,11 +20,12 @@ class Table(object):
         TODO:
     """
 
-    def __init__(self, name, schema, uri=None):
+    def __init__(self, name, schema, uri=None, batch_size=10000):
         """ """
         self.name = name
         self.schema = schema
         self.uri = uri
+        self.batch_size = batch_size
 
     def exists(self):
         """ Returns True if table exists false otherwise. """
@@ -105,10 +106,11 @@ class Table(object):
         #         cursor.execute(truncate_stmt)
         #         connection.commit()
 
-    def insert(self, rows, conflict_on=None):
-        """ INSERT rows into existing PostgreSQL table.
+    def insert_tuples(self, tuples, header, conflict_on=None):
+        """ INSERT tuple rows into existing PostgreSQL table.
 
-        :param rows: python generator
+        :param tuples: python generator
+        :param header: column names, string
         :param conflict_on: name of the column, string
 
         The conflict_on column must have unique values. It is used as a rule
@@ -116,53 +118,115 @@ class Table(object):
         the table (e.g. INSERT) or if the row already exists and the values
         need to be updated (e.g. UPDATE).
         """
-        first_row = next(rows)
-        keys = first_row.keys()
+        placeholder = '(%s)' % ', '.join(['%s' for _ in header])
+        values = tuple()
+        values_placeholder = list()
+        batch_count = 0
 
+        insert_stmt = self.get_insert_stmt(columns=header)
         if conflict_on:
-            stmt = self.get_upsert_stmt(columns=keys, constraint=conflict_on)
-        else:
-            stmt = self.get_insert_stmt(columns=keys)
+            conflict_stmt = self.get_conflict_stmt(columns=header, constraint=conflict_on)
 
         with psycopg2.connect(self.uri) as connection:
             with connection.cursor() as cursor:
-                cursor.execute(stmt, list(first_row.values()))
-                for row in rows:
-                    cursor.execute(stmt, list(row.values()))
-            connection.commit()
+                for row in tuples:
+                    if batch_count < self.batch_size:
+                        values += row
+                        values_placeholder.append(placeholder)
+                        batch_count += 1
+                    else:
+                        if conflict_on:
+                            stmt = '%s %s %s;' % (insert_stmt, ', '.join(values_placeholder), conflict_stmt)
+                        else:
+                            stmt = '%s %s;' % (insert_stmt, ', '.join(values_placeholder))
+
+                        cursor.execute(stmt, values)
+
+                        values = tuple()
+                        values_placeholder = list()
+                        batch_count = 0
+
+                if conflict_on:
+                    stmt = '%s %s %s;' % (insert_stmt, ', '.join(values_placeholder), conflict_stmt)
+                else:
+                    stmt = '%s %s;' % (insert_stmt, ', '.join(values_placeholder))
+                cursor.execute(stmt, values)
+                connection.commit()
+
+    def insert_records(self, records, conflict_on=None):
+        """ INSERT dict rows into existing PostgreSQL table.
+
+        :param records: python generator
+        :param conflict_on: name of the column, string
+
+        The conflict_on column must have unique values. It is used as a rule
+        by the INSERT command to determine if the row needs to be appended to
+        the table (e.g. INSERT) or if the row already exists and the values
+        need to be updated (e.g. UPDATE).
+        """
+        first_row = next(records)
+        keys = first_row.keys()
+        values = list(first_row.values())
+        placeholder = '(%s)' % ', '.join(['%s' for _ in first_row.values()])
+        values_placeholder = [placeholder, ]
+        batch_count = 1
+
+        insert_stmt = self.get_insert_stmt(columns=keys)
+        if conflict_on:
+            conflict_stmt = self.get_conflict_stmt(columns=keys, constraint=conflict_on)
+
+        with psycopg2.connect(self.uri) as connection:
+            with connection.cursor() as cursor:
+                for row in records:
+                    if batch_count < self.batch_size:
+                        values = values + list(row.values())
+                        values_placeholder.append(placeholder)
+                        batch_count += 1
+                    else:
+                        if conflict_on:
+                            stmt = '%s %s %s;' % (insert_stmt, ', '.join(values_placeholder), conflict_stmt)
+                        else:
+                            stmt = '%s %s;' % (insert_stmt, ', '.join(values_placeholder))
+                        cursor.execute(stmt, values)
+                        values = list()
+                        values_placeholder = list()
+                        batch_count = 0
+
+                if conflict_on:
+                    stmt = '%s %s %s;' % (insert_stmt, ', '.join(values_placeholder), conflict_stmt)
+                else:
+                    stmt = '%s %s;' % (insert_stmt, ', '.join(values_placeholder))
+                cursor.execute(stmt, values)
+                connection.commit()
 
     def get_insert_stmt(self, columns):
         """ Generate INSERT statement using a list of columns.
-
         :param columns: list of strings
 
-        TODO:
-            * created_at, updated_at -- need to figure out if
-        it is a good idea to do it here
-            * serial id, hash, and so on
+        :return SQL: sql string, looks something like this
+
+            "INSERT INTO table (id, order_reference, address, user_id) VALUES"
+
+        To this resulting string, a new string will be appended.
         """
-        insert_stmt = "INSERT INTO {table} ({columns}) VALUES ({values});"
+        insert_stmt = "INSERT INTO {table} ({columns}) VALUES"
         return insert_stmt.format(
             table='.'.join([self.schema, self.name]),
-            columns=', '.join(columns),
-            values=', '.join(['%s' for c in columns])
+            columns=', '.join(columns)
         )
 
-    def get_upsert_stmt(self, columns, constraint):
+    def get_conflict_stmt(self, columns, constraint):
         """ Generate INSERT ON CONFLICT statement using a list of columns.
-
         :param columns: list of strings
         :param constraint: string
-
-        TODO: updated_at
         """
-        merge_stmt = "INSERT INTO {table} ({columns}) VALUES ({values}) " \
-                     "ON CONFLICT ({constraint}) DO UPDATE " \
-                     "SET ({columns}) = ({excluded_values});"
+        if type(constraint) is list:
+            constraint = ', '.join(constraint)
+        merge_stmt = "ON CONFLICT ({constraint}) DO UPDATE " \
+                     "SET ({columns}) = ({excluded_values})"
         return merge_stmt.format(
             table='.'.join([self.schema, self.name]),
             columns=', '.join(columns),
-            values=', '.join(['%s' for c in columns]),
             constraint=constraint,
             excluded_values=', '.join(['EXCLUDED.%s' % c for c in columns])
         )
