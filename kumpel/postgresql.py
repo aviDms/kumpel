@@ -349,7 +349,7 @@ class Database(object):
         :param name:
         :return:
         """
-        stmt = "CREATE SCHEMA IF NOT EXISTS {{schema_name}};"
+        stmt = "CREATE SCHEMA IF NOT EXISTS {schema_name};"
         with psycopg2.connect(self.uri) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(stmt.format(schema_name=name))
