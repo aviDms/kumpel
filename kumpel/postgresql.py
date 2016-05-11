@@ -1,6 +1,5 @@
 import psycopg2
-from psycopg2.extras import RealDictConnection
-from .helpers import read_sql
+from kumpel.helpers import read_sql
 
 
 class Table(object):
