@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from psycopg2.extras import RealDictConnection
+from kumpel.helpers import read_sql
 
 __author__ = "avram dames"
 __doc__ = """ ETL tool """
@@ -51,8 +52,12 @@ class Query(object):
         :param script_path: os path to SQL script
         """
         self.connections = db.connections
-        self.sql = sql
-        self.script_path = script_path
+        if sql:
+            self.sql = sql
+        elif script_path:
+            self.script_path = read_sql(script_path)
+        else:
+            raise Exception('No SQL provided to query object.')
 
     def run(self):
         """ Run an SQL query against multiple databases.
