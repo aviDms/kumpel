@@ -55,9 +55,9 @@ class Query(object):
         if sql:
             self.sql = sql
         elif script_path:
-            self.script_path = read_sql(script_path)
+            self.sql = read_sql(script_path)
         else:
-            raise Exception('No SQL provided to query object.')
+            raise AttributeError('No SQL provided to query object.')
 
     def run(self):
         """ Run an SQL query against multiple databases.
