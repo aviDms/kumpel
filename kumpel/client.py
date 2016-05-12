@@ -55,7 +55,7 @@ class Query(object):
         self.script_path = script_path
 
     def run(self):
-        """
+        """ Run an SQL query against multiple databases.
         TODO: change __conn_name with metadata
         """
         for name, dsn in self.connections.items():
