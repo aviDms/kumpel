@@ -275,6 +275,30 @@ class Table(object):
             values=', '.join(['%s' for c in columns]),
         )
 
+    def read(self, sql=None, script_path=None, limit=None):
+        """
+
+        :param sql:
+        :param script_path:
+        :param limit:
+        :return:
+        """
+
+        if sql:
+            stmt = sql
+        elif script_path:
+            stmt = read_sql(path=script_path)
+        else:
+            stmt = "SELECT * FROM %s.%s" % (self.schema, self.name)
+            if limit:
+                stmt += ' LIMIT %s;' % limit
+
+        with psycopg2.connect(self.uri) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(stmt)
+                for row in cursor:
+                    yield row
+
     def get_constraints(self):
         """ Query db for the list of constraints for this table """
         stmt = "SELECT constraint_name, constraint_type " \
