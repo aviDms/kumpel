@@ -157,6 +157,7 @@ class Table(object):
                     print(e)
                     print(stmt)
                     print(values)
+                    exit()
                 connection.commit()
 
     def insert_records(self, records, conflict_on=None):
