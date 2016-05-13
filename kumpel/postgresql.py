@@ -145,7 +145,7 @@ class Table(object):
                         except Exception as e:
                             print(e)
                             print(stmt)
-                            print(values)
+                            print(values[0])
                             exit()
 
                         values = tuple()
