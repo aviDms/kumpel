@@ -1,4 +1,5 @@
 import psycopg2
+from psycopg2.extras import RealDictConnection
 from kumpel.helpers import read_sql
 
 
@@ -293,7 +294,7 @@ class Table(object):
             if limit:
                 stmt += ' LIMIT %s;' % limit
 
-        with psycopg2.connect(self.uri) as connection:
+        with RealDictConnection(self.uri) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(stmt)
                 for row in cursor:
