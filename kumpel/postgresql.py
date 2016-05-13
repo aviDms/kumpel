@@ -221,7 +221,7 @@ class Table(object):
         :param columns: list of strings
         :param constraint: string
         """
-        if type(constraint) is list:
+        if isinstance(constraint, (list, tuple)):
             constraint = ', '.join(constraint)
         merge_stmt = "ON CONFLICT ({constraint}) DO UPDATE " \
                      "SET ({columns}) = ({excluded_values})"
