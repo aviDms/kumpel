@@ -140,7 +140,13 @@ class Table(object):
                         else:
                             stmt = '%s %s;' % (insert_stmt, ', '.join(values_placeholder))
 
-                        cursor.execute(stmt, values)
+                        try:
+                            cursor.execute(stmt, values)
+                        except Exception as e:
+                            print(e)
+                            print(stmt)
+                            print(values)
+                            exit()
 
                         values = tuple()
                         values_placeholder = list()
