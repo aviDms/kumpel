@@ -27,7 +27,7 @@ def coroutine(function):
     return start
 
 
-def month_split(start_date, end_date, window=30):
+def date_split(start_date, end_date, window=30):
     """
     Calculate window size days split between two dates.
 
@@ -44,10 +44,9 @@ def month_split(start_date, end_date, window=30):
     :param window: <integer> how many days an interval should have
     :return: list of datetime tuples
     """
-    if not isinstance(start_date, datetime.date):
-        start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
-    if not isinstance(end_date, datetime.date):
-        end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+    assert isinstance(start_date, datetime.date)
+    assert isinstance(end_date, datetime.date)
+    assert start_date < end_date
 
     if (end_date - start_date).days > window:
         seq = []
@@ -56,7 +55,6 @@ def month_split(start_date, end_date, window=30):
             seq.append(date)
             date += datetime.timedelta(days=window)
         seq.append(end_date)
-        print(seq)
 
         intervals = []
         one_day = datetime.timedelta(days=1)
