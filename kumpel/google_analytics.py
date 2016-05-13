@@ -56,8 +56,8 @@ class GoogleAnalytics(object):
             while not all_rows_are_fetched:
                 res = service.data().ga().get(
                     ids=ids,
-                    start_date=start.strformat('%Y-%m-%d'),
-                    end_date=end,
+                    start_date=start.strftime('%Y-%m-%d'),
+                    end_date=end.strftime('%Y-%m-%d'),
                     dimensions=dimensions,
                     metrics=metrics,
                     start_index=start_index,
