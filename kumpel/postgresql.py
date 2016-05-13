@@ -150,6 +150,7 @@ class Table(object):
                     stmt = '%s %s %s;' % (insert_stmt, ', '.join(values_placeholder), conflict_stmt)
                 else:
                     stmt = '%s %s;' % (insert_stmt, ', '.join(values_placeholder))
+                print(stmt, values)
                 cursor.execute(stmt, values)
                 connection.commit()
 
