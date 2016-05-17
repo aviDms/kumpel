@@ -5,10 +5,14 @@ import datetime
 def read_sql(path, **kwargs):
     with open(path, 'r') as handle:
         sql = handle.read()
-        for arg in kwargs:
+        for arg, value in kwargs.items():
             to_be_replaced = '{' + arg + '}'
-            replace_with = str(kwargs[arg])
+            if isinstance(value, list):
+                replace_with = ', '.join(value)
+            else:
+                replace_with = str(value)
             sql = sql.replace(to_be_replaced, replace_with)
+    print(sql)
     return sql
 
 
