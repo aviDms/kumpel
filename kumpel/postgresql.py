@@ -51,7 +51,7 @@ class Query(object):
         if 'limit' in stmt.lower():
             pass
         elif stmt[-1] == ';':
-            stmt = stmt[:-1] + 'LIMIT 0;'
+            stmt = stmt[:-1] + ' LIMIT 0;'
         else:
             stmt += ' LIMIT 0;'
 
