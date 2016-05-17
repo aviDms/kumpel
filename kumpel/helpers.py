@@ -12,7 +12,6 @@ def read_sql(path, **kwargs):
             else:
                 replace_with = str(value)
             sql = sql.replace(to_be_replaced, replace_with)
-    print(sql)
     return sql
 
 

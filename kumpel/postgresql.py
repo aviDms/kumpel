@@ -1,6 +1,101 @@
 import psycopg2
 from psycopg2.extras import RealDictConnection
+
 from kumpel.helpers import read_sql
+
+
+class DatabaseNotAssign(BaseException):
+    pass
+
+
+class Query(object):
+    """ Query object - The E in ETL """
+
+    def __init__(self, sql=None, script_path=None, **kwargs):
+        """ Run an SQL query on all available connections
+        in the self.connections dict.
+
+        :param sql: SQL string
+        :param script_path: os path to SQL script
+        """
+        self.connections = dict()
+        if sql:
+            self.sql = sql
+        elif script_path:
+            self.sql = read_sql(script_path, **kwargs)
+        else:
+            raise AttributeError('No SQL provided to query object.')
+
+    def add_connection(self, name, uri):
+        """ The Query object can run an SQL query on one
+        or multiple databases. Use this method to instruct
+        the Query object on which databases to run.
+
+        :param name: <string> connection name
+        :param uri: <string> credentials string
+        """
+        assert isinstance(name, str)
+        assert isinstance(uri, str)
+        self.connections[name] = uri
+
+    def get_column_names(self):
+        """ Fetch the column names returned by the query.
+
+        :return list of strings
+        """
+        if not self.connections:
+            raise DatabaseNotAssign()
+
+        # this is optional, can be removed
+        stmt = self.sql
+        if 'limit' in stmt.lower():
+            pass
+        elif stmt[-1] == ';':
+            stmt = stmt[:-1] + 'LIMIT 0;'
+        else:
+            stmt += ' LIMIT 0;'
+
+        # first connection only
+        uri = list(self.connections.values())[0]
+
+        with psycopg2.connect(uri) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(stmt)
+                columns = [desc[0] for desc in cursor.description]
+        return columns
+
+    def run(self):
+        """ Run an SQL query against multiple databases.
+
+        * one extra feature: replace the {name} in any given sql to the
+        connection name (e.g. returns "AU-123" instead of "123")
+
+        :return generator of tuples
+        """
+        if not self.connections:
+            raise DatabaseNotAssign()
+
+        for name, uri in self.connections.items():
+            with psycopg2.connect(uri) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(self.sql.replace('{name}', name))
+                    for row in cursor:
+                        yield row
+
+    def records(self):
+        """ Run an SQL query against multiple databases.
+
+        :return generator of dicts
+        """
+        if not self.connections:
+            raise DatabaseNotAssign()
+
+        for name, uri in self.connections.items():
+            with RealDictConnection(uri) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute(self.sql)
+                    for row in cursor:
+                        yield row
 
 
 class Table(object):
@@ -97,15 +192,6 @@ class Table(object):
                 cursor.execute(truncate_stmt)
             connection.commit()
 
-    def vacuum(self, full=True, analyze=True):
-        """ Need to close other open connections first """
-        raise NotImplementedError
-        # truncate_stmt = "VACUUM FULL ANALYZE %s.%s;" % (self.schema, self.name)
-        # with psycopg2.connect(self.uri) as connection:
-        #     with connection.cursor() as cursor:
-        #         cursor.execute(truncate_stmt)
-        #         connection.commit()
-
     def insert_tuples(self, tuples, header, conflict_on=None):
         """ INSERT tuple rows into existing PostgreSQL table.
 
@@ -142,11 +228,10 @@ class Table(object):
 
                         try:
                             cursor.execute(stmt, values)
-                        except Exception as e:
-                            print(e)
+                        except psycopg2.ProgrammingError as e:
                             print(stmt)
                             print(values)
-                            exit()
+                            raise e
 
                         values = tuple()
                         values_placeholder = list()
@@ -159,11 +244,10 @@ class Table(object):
 
                 try:
                     cursor.execute(stmt, values)
-                except Exception as e:
-                    print(e)
+                except psycopg2.ProgrammingError as e:
                     print(stmt)
                     print(values)
-                    exit()
+                    raise e
                 connection.commit()
 
     def insert_records(self, records, conflict_on=None):

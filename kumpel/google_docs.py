@@ -4,24 +4,17 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 class GoogleDocs(object):
     """ """
+    scopes = ['https://spreadsheets.google.com/feeds']
+
     def __init__(self, credentials_file):
-        self.scopes = ['https://spreadsheets.google.com/feeds']
-        self.credentials_file = credentials_file
-
-    def add_scope(self):
-        """
-
-        :return:
-        """
-        raise NotImplementedError
-
-    def worksheets(self, workbook):
         credentials = ServiceAccountCredentials.from_json_keyfile_name(
-            filename=self.credentials_file,
+            filename=credentials_file,
             scopes=self.scopes
         )
-        drive = gspread.authorize(credentials)
-        doc = drive.open(title=workbook)
+        self.service = gspread.authorize(credentials)
+
+    def worksheets(self, workbook):
+        doc = self.service.open(title=workbook)
         for sheet in doc.worksheets():
             yield str(sheet).split("'")[1]
 
@@ -34,12 +27,7 @@ class GoogleDocs(object):
         :param head:
         :return:
         """
-        credentials = ServiceAccountCredentials.from_json_keyfile_name(
-            filename=self.credentials_file,
-            scopes=self.scopes
-        )
-        drive = gspread.authorize(credentials)
-        doc = drive.open(title=workbook)
+        doc = self.service.open(title=workbook)
         sheet = doc.worksheet(title=worksheet)
         for record in sheet.get_all_records(empty2zero=empty2zero, head=head):
             yield record
