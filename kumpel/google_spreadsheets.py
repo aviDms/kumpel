@@ -2,7 +2,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 
-class GoogleSpreadsheets(object):
+class GoogleDocs(object):
     """ """
     def __init__(self, credentials_file):
         self.scopes = ['https://spreadsheets.google.com/feeds']
