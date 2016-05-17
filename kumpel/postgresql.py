@@ -20,12 +20,14 @@ class Table(object):
         TODO:
     """
 
-    def __init__(self, name, schema, uri=None, batch_size=10000):
+    def __init__(self, name, schema, uri=None, batch_size=10000,
+                 unique_constraint=None):
         """ """
         self.name = name
         self.schema = schema
         self.uri = uri
         self.batch_size = batch_size
+        self.unique_constraint = unique_constraint
 
     def exists(self):
         """ Returns True if table exists false otherwise. """
@@ -57,15 +59,13 @@ class Table(object):
         return resp[0]
 
     def create(self, sql=None, script_path=None, drop_if_exists=False):
-        """
-        TODO: add **kargs to create stmt
-        """
+        """ """
         drop_stmt = "DROP TABLE IF EXISTS %s.%s;" % (self.schema, self.name)
         if sql:
             create_stmt = sql
         elif script_path:
             create_stmt = read_sql(path=script_path, schema=self.schema,
-                                   table=self.name)
+                                   table=self.name, unique=self.unique_constraint)
         else:
             exit('Create SQL statement is missing.')
 

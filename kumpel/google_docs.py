@@ -15,6 +15,16 @@ class GoogleDocs(object):
         """
         raise NotImplementedError
 
+    def worksheets(self, workbook):
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(
+            filename=self.credentials_file,
+            scopes=self.scopes
+        )
+        drive = gspread.authorize(credentials)
+        doc = drive.open(title=workbook)
+        for sheet in doc.worksheets():
+            yield str(sheet).split("'")[1]
+
     def get_records(self, workbook, worksheet, empty2zero=False, head=1):
         """
 

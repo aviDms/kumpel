@@ -1,9 +1,6 @@
 from functools import wraps
 import datetime
 
-def read_text_file():
-        raise NotImplementedError
-
 
 def read_sql(path, **kwargs):
     with open(path, 'r') as handle:
