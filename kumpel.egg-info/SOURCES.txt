@@ -1,0 +1,9 @@
+setup.py
+kumpel/__init__.py
+kumpel/k_bigquery.py
+kumpel.egg-info/PKG-INFO
+kumpel.egg-info/SOURCES.txt
+kumpel.egg-info/dependency_links.txt
+kumpel.egg-info/not-zip-safe
+kumpel.egg-info/requires.txt
+kumpel.egg-info/top_level.txt

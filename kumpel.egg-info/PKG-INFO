@@ -1,0 +1,15 @@
+Metadata-Version: 1.1
+Name: kumpel
+Version: 0.11
+Summary: ETL packages bundle for Python.
+Home-page: http://github.com/avidms/kumpel
+Author: Avram Dames
+Author-email: avram.dames@gmail.com
+License: MIT
+Description: UNKNOWN
+Keywords: etl business intelligence bigquery data
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Topic :: Database
