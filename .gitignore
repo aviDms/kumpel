@@ -1,3 +1,18 @@
-*.pyc
-/dist/
-/*.egg-info
+# general things to ignore
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.so
+*~
+
+# environment
+.venv
+.idea
+
+# due to using tox and pytest
+.tox
+.cache
+data/*
+tests/local_tests.py
+tests/playground.py
